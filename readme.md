@@ -1,5 +1,6 @@
 # Discord logging bot
-The bot uses discord.js v12 which requires node.js v12 or newer
+The bot uses discord.js v12 which requires node.js v12 or newer.\
+Should work on multiple servers at the same time but only one admin channel can be inputted at the moment.
 
 ## Features:
 - Logs all channels that it has permissions to read
@@ -20,3 +21,12 @@ The bot uses discord.js v12 which requires node.js v12 or newer
   "localTime" : false (Timestamps in machine's local time or UTC)
 }
 ```
+
+## Commands
+Only admins can use commands
+
+- help - list commands
+- printlog [channel mention or id] [time in YYYY-MM-DD format] - print channel's log for given date
+- clearlog [channel mention or id] - clears the channel's logs
+
+for checking the used admin commands log print with string "admin" as channel name. Admin logs cannot be cleared
