@@ -1,18 +1,19 @@
-## Discord logging bot
----
+# Discord logging bot
+The bot uses discord.js v12 which requires node.js v12 or newer
 
-### Features:
+## Features:
 - Logs all channels that it has permissions to read
 - Log organized to folders per channel, files per date
 - Print given date's log from Discord
 - Clear channel log from Discord
-- Safety features like double checking printing to public channel
-- 
+- Safety features like:
+  * double checking printing to public channel
+  * Logging used admin commands on non-removable log for blaming
 
-### Config.json
+## Config.json
 ```
 {
-  "token" : "bot_token",
+  "token" : "bot_login_token",
   "prefix" : ">",
   "embedColor": "hex_color",
   "adminChannelId" : "admin-only_channel_id", (In this channel bot wont double check the print)

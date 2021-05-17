@@ -5,8 +5,6 @@ const moment = require('moment');
 const bot = new Discord.Client({ disableMentions: 'none' });
 const prefix = config.prefix;
 
-// Todo: Change the writing to stream
-
 let adminLogPath = "./logs/admin/";
 
 const helpMessage = new Discord.MessageEmbed()
