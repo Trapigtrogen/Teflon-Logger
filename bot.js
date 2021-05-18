@@ -79,15 +79,16 @@ function checkTimeFormat(timeParam) {
 function writeLog(path, filename, username, line) {
 	ensureExists(path, 0744, function(err) {
 		if (err) {
-			console.log("couldn't create folder")
+			console.log("couldn't create folder");
 			return;
 		}
 		else {
 			fs.appendFile(path + "/" + filename, getTime() + "\t**" + username + ":**\t" + line + '\n', 'utf8', (err) => {
 				if (err) {
 					console.warn(err);
-					if(bot.channels.cache.get(config.errMsgChannel))
+					if ( bot.channels.cache.get(config.errMsgChannel) ) {
 						bot.channels.cache.get(config.errMsgChannel).send("Couldn't write log! Plz help :sob:");
+					}
 				}
 			});
 		}
@@ -95,7 +96,7 @@ function writeLog(path, filename, username, line) {
 }
 
 function printLog(destination, channelId, date, usedBy) {
-	// Separate for admin and normal
+	// Normal log
 	if(channelId != "admin") {
 		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + bot.channels.cache.get(channelId).name + " dated: " + date);
@@ -106,9 +107,10 @@ function printLog(destination, channelId, date, usedBy) {
 			else destination.send("No channel log exists for given day");
 		});
 	}
+
 	// Admin log
 	else {
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + " dated: " + date);
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date);
 
 		destination.send("printing admin log dated: " + date + " UTC");
 		fs.readFile("./logs/" + channelId + "/" + date + ".log", 'utf8', function(err, contents) {
@@ -119,20 +121,24 @@ function printLog(destination, channelId, date, usedBy) {
 }
 
 async function removeLog(destination, channel, usedBy) {
-	if(channel == "admin") {
+	// Normal remove
+	if(channel != "admin") {
+		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + destination + "-" + destination.name + " dated: " + date);
-		destination.send("Admin logs cannot be removed!");
+		
+		try {
+			await fs.remove("./logs/" + channel + "-" + channel.name);
+			destination.send("Log removed!");
+		} 
+		catch (err) {
+			console.warn(err);
+		}
 	}
 
-	// Mark usage of this to bot log
-	writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + destination + "-" + destination.name + " dated: " + date);
-	
-	try {
-		await fs.remove("./logs/" + channel + "-" + channel.name);
-		destination.send("Log removed!");
-	} 
-	catch (err) {
-		console.warn(err);
+	// Prevent removing admin logs
+	else {
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date);
+		destination.send("Admin logs cannot be removed!");
 	}
 }
 
@@ -156,7 +162,8 @@ function requireConfirmation(userId, msgChannel, str, func, parameters) {
 }
 
 bot.on("ready", function() {
-	bot.user.setActivity(`everything you do`, { type: 3 });
+	// The status disappears after while for some reason
+	bot.user.setActivity(`everything you do`, { type: 'WATCHING' });
 	ensureExists("./logs/", 0744, function(err) {
 		if (err) console.warn("couldn't create folder logs")
 	});
@@ -169,15 +176,27 @@ bot.on("message", function(message) {
 	if (message.author.equals(bot.user)) return;
 
 	// Log all user messages
-	writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content);
+	// Message can be empty if user send file (like image) with no message
+	// There's no point logging the empty message
+	if(message.content != "") {
+		writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content);
+	}
+	// Log urls for included files
+	if (message.attachments.size > 0) {
+		for(let i = 0; i < message.attachments.size; i++) {
+			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, "<" + message.attachments.array()[i].url + ">");
+		}
+	}
 
 // COMMAND MODE:
 	// Only continue if user is full admin
 	if(message.member.hasPermission('ADMINISTRATOR')) {
+		// Remove axtra spaces
+		let msg = message.content.replace(/ +(?= )/g,'');
 		// Put arguments on their own array
-		const args = message.content.split(' ').slice(1);
-		if  (message.content.startsWith(prefix)) {
-			const command = message.content.substring(1).toLowerCase().split(" ");
+		const args = msg.split(' ').slice(1);
+		if  (msg.startsWith(prefix)) {
+			const command = msg.substring(1).toLowerCase().split(" ");
 			let precommand = command.shift(); // Remove the prefix as it can be changed from config
 			// Variables to store fixed parameters in later
 			let channelId;
