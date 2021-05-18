@@ -83,7 +83,7 @@ function writeLog(path, filename, username, line) {
 			return;
 		}
 		else {
-			fs.appendFile(path + "/" + filename, getTime() + "\t**" + username + ":**\t" + line + '\n', 'utf8', (err) => {
+			fs.appendFile(path + "/" + filename, getTime() + "\t**" + username + ":**\t" + line + '\n\n', 'utf8', (err) => {
 				if (err) {
 					console.warn(err);
 					if ( bot.channels.cache.get(config.errMsgChannel) ) {
