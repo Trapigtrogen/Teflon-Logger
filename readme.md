@@ -29,4 +29,5 @@ Only admins can use commands
 - printlog [channel mention or id] [time in YYYY-MM-DD format] - print channel's log for given date
 - clearlog [channel mention or id] - clears the channel's logs
 
-for checking the used admin commands log print with string "admin" as channel name. Admin logs cannot be cleared
+For checking the used admin commands log print with string "admin" as channel name. Admin logs cannot be cleared\
+You can replace timestamp with "all" to get all channel's logs in one file 
