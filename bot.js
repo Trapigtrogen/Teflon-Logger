@@ -147,10 +147,10 @@ function writeLog(path, filename, username, line, messageId) {
 		else {
 			let str;
 			if(messageId < 0) {
-				str = getTime() + "\t" + username + ":\t" + line + '\n\n';
+				str = getTime() + "\t" + username + ":\t" + line + '\n';
 			}
 			else {
-				str = getTime() + "\t" + username + ":\t" + line + "\t (messageID: " + messageId + ')\n\n';
+				str = getTime() + "\t" + username + ":\t" + line + "\t (messageID: " + messageId + ')\n';
 			}
 			writeFile(path + "/" + filename, str);
 		}
