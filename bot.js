@@ -14,12 +14,12 @@ const helpMessage = new Discord.MessageEmbed()
 	.addFields(
 		{ name: '>printlog [channel mention or id] [YYYY-MM-DD]', value: 'Prints logs for given channel for given date.\n' +
 																		 'Note that for the time only YYYY-MM-DD is supported (include leading 0 for single digit dates)' + 
-																		 'For admin log you can replace the channel with "admin"' },
+																		 'For admin log you can replace the channel with "admin"\n' +
+																		 'Replace timestamp with "all" to get all of the channel\'s logs in one file' },
 		{ name: '>clearlog [channel mention or id]', value: 'Removes the channels log folder. This is _**ALL**_ logs for that channel' }
 	)
 	.setThumbnail('https://puu.sh/AZxe5.png')
-	.setTimestamp()
-	.setFooter('Uses of admin commands are stored in special, non-removable logs for safety and blaming reasons', 'https://i.imgur.com/wSTFkRM.png');
+	.setFooter('Uses of admin commands are stored in special, non-removable logs for safety and blaming reasons');
 
 // Get date and time. Machines local time or UTC based on config
 function getDate() {
@@ -96,27 +96,33 @@ function writeLog(path, filename, username, line) {
 }
 
 function printLog(destination, channelId, date, usedBy) {
+	let fullpath; // Store filepath here
 	// Normal log
 	if(channelId != "admin") {
 		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + bot.channels.cache.get(channelId).name + " dated: " + date);
-
-		destination.send("printing log for channel: <#" + channelId + "> dated: " + date + " UTC");
-		fs.readFile("./logs/" + channelId + "-" + bot.channels.cache.get(channelId).name + "/" + date + ".log", 'utf8', function(err, contents) {
-			if(contents) destination.send(contents.toString());
-			else destination.send("No channel log exists for given day");
-		});
+		// Set file path
+		fullpath = "./logs/" + channelId + "-" + bot.channels.cache.get(channelId).name + "/" + date + ".log";
 	}
-
 	// Admin log
 	else {
+		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date);
+		// Set file path
+		fullpath = "./logs/" + channelId + "/" + date + ".log";
+	}
 
-		destination.send("printing admin log dated: " + date + " UTC");
-		fs.readFile("./logs/" + channelId + "/" + date + ".log", 'utf8', function(err, contents) {
-			if(contents) destination.send(contents.toString());
-			else destination.send("No admin log exists for given day");
-		});
+	// Possibility to print all-in-one or dated
+	if(date != "all") {
+		if (fs.existsSync(fullpath)) {
+			// Send as file since the logs will easily be more than 2000chars
+			destination.send("Log for channel: <#" + channelId + "> dated: " + date + " UTC", { files: [fullpath] });
+		}
+		else destination.send("No log found for: <#" + channelId + "> dated: " + date);
+	}
+	// All logs for channel combined
+	else {
+		// Combine all to one file and send that
 	}
 }
 
@@ -137,6 +143,7 @@ async function removeLog(destination, channel, usedBy) {
 
 	// Prevent removing admin logs
 	else {
+		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date);
 		destination.send("Admin logs cannot be removed!");
 	}
@@ -257,6 +264,12 @@ bot.on("message", function(message) {
 		}
 	}
 });
+
+bot.on('messageUpdate', (oldMessage, newMessage) => {
+	let str = "*Edited message: *" + oldMessage.content + " -> " + newMessage.content;
+	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str
+	);
+ });
 
 bot.on('uncaughtException', (e) => console.error(e));
 bot.on('error', (e) => console.error(e));
