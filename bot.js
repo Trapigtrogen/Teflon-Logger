@@ -6,7 +6,6 @@ const bot = new Discord.Client({ disableMentions: 'none' });
 const prefix = config.prefix;
 
 let adminLogPath = "./logs/admin/";
-
 const helpMessage = new Discord.MessageEmbed()
 	.setColor(config.embedColor)
 	.setTitle('Bot automatically logs and organizes all of the channels it has access to')
@@ -20,6 +19,7 @@ const helpMessage = new Discord.MessageEmbed()
 	)
 	.setThumbnail('https://puu.sh/AZxe5.png')
 	.setFooter('Uses of admin commands are stored in special, non-removable logs for safety and blaming reasons');
+
 
 // Get date and time. Machines local time or UTC based on config
 function getDate() {
@@ -35,6 +35,7 @@ function getTime() {
 	return moment.utc().format('HH:mm:ss');
 }
 
+
 // Checks if the folder exists and creates it if not
 function ensureExists(path, mask, cb) {
     if (typeof mask == 'function') { // Allow the `mask` parameter to be optional
@@ -48,6 +49,7 @@ function ensureExists(path, mask, cb) {
         } else cb(null); // Successfully created folder
     });
 }
+
 
 // Check if channel parameter is valid
 function checkChannelFormat(channelParam) {
@@ -64,10 +66,15 @@ function checkChannelFormat(channelParam) {
 	return -1;
 }
 
+
 // Check if timeframe parameter is valid
 function checkTimeFormat(timeParam) {
+	// Skip check for all
+	if(timeparam == "all") return timeparam;
+
 	if(timeParam.length != 10) return -1; // Wrong amount of characters
 
+	// Proper check for format YYYY-MM-DD
 	if(/(19|20)[0-9]{2}-((02-(0[1-9]|[1-2][0-9]))|((01|03|05|07|08|10|12)-(0[1-9]|[1-2][0-9]|3[0-1]))|((04|06|09|11)-(0[1-9]|[1-2][0-9]|30)))/.test(timeParam)) {
 		return timeParam;
 	}
@@ -76,14 +83,21 @@ function checkTimeFormat(timeParam) {
 	return -1;
 }
 
-function writeLog(path, filename, username, line) {
+
+function writeLog(path, filename, username, line, messageId) {
 	ensureExists(path, 0744, function(err) {
 		if (err) {
 			console.log("couldn't create folder");
 			return;
 		}
 		else {
-			fs.appendFile(path + "/" + filename, getTime() + "\t**" + username + ":**\t" + line + '\n\n', 'utf8', (err) => {
+			if(messageId < 0) {
+				let str = getTime() + "\t" + username + ":\t" + line + '\n\n';
+			}
+			else {
+				let str = getTime() + "\t" + username + ":\t" + line + "\t (messageID: )" + messageId + '\n\n';
+			}
+			fs.appendFile(path + "/" + filename, str, 'utf8', (err) => {
 				if (err) {
 					console.warn(err);
 					if ( bot.channels.cache.get(config.errMsgChannel) ) {
@@ -95,19 +109,20 @@ function writeLog(path, filename, username, line) {
 	});
 }
 
+
 function printLog(destination, channelId, date, usedBy) {
 	let fullpath; // Store filepath here
 	// Normal log
 	if(channelId != "admin") {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + bot.channels.cache.get(channelId).name + " dated: " + date);
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + bot.channels.cache.get(channelId).name + " dated: " + date, -1);
 		// Set file path
 		fullpath = "./logs/" + channelId + "-" + bot.channels.cache.get(channelId).name + "/" + date + ".log";
 	}
 	// Admin log
 	else {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date);
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date, -1);
 		// Set file path
 		fullpath = "./logs/" + channelId + "/" + date + ".log";
 	}
@@ -126,11 +141,12 @@ function printLog(destination, channelId, date, usedBy) {
 	}
 }
 
+
 async function removeLog(destination, channel, usedBy) {
 	// Normal remove
 	if(channel != "admin") {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + destination + "-" + destination.name + " dated: " + date);
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + destination + "-" + destination.name + " dated: " + date, -1);
 		
 		try {
 			await fs.remove("./logs/" + channel + "-" + channel.name);
@@ -144,10 +160,11 @@ async function removeLog(destination, channel, usedBy) {
 	// Prevent removing admin logs
 	else {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date);
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date, -1);
 		destination.send("Admin logs cannot be removed!");
 	}
 }
+
 
 // General confirmation. Works with any function
 function requireConfirmation(userId, msgChannel, str, func, parameters) {
@@ -168,6 +185,7 @@ function requireConfirmation(userId, msgChannel, str, func, parameters) {
 	});
 }
 
+
 bot.on("ready", function() {
 	// The status disappears after while for some reason
 	bot.user.setActivity(`everything you do`, { type: 'WATCHING' });
@@ -186,12 +204,12 @@ bot.on("message", function(message) {
 	// Message can be empty if user send file (like image) with no message
 	// There's no point logging the empty message
 	if(message.content != "") {
-		writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content);
+		writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content, message.id);
 	}
 	// Log urls for included files
 	if (message.attachments.size > 0) {
 		for(let i = 0; i < message.attachments.size; i++) {
-			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, "<" + message.attachments.array()[i].url + ">");
+			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, "<" + message.attachments.array()[i].url + ">", message.id);
 		}
 	}
 
@@ -265,11 +283,12 @@ bot.on("message", function(message) {
 	}
 });
 
+
 bot.on('messageUpdate', (oldMessage, newMessage) => {
-	let str = "*Edited message: *" + oldMessage.content + " -> " + newMessage.content;
-	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str
-	);
+	let str = " edited message: " + oldMessage.content + " -> " + newMessage.content;
+	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str, -1);
  });
+
 
 bot.on('uncaughtException', (e) => console.error(e));
 bot.on('error', (e) => console.error(e));
