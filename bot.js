@@ -3,9 +3,9 @@ const config = require("./config.json");
 const fs = require('fs-extra');
 const moment = require('moment');
 const bot = new Discord.Client({ disableMentions: 'none' });
-const prefix = config.prefix;
 
 let adminLogPath = "./logs/admin";
+
 const helpMessage = new Discord.MessageEmbed()
 .setColor(config.embedColor)
 .setTitle('Bot automatically logs and organizes all of the channels it has access to')
@@ -240,6 +240,21 @@ function requireConfirmation(userId, destination, str, func, parameters) {
 }
 
 
+function isAdminChannel(channelId) {
+	for (i in config.adminChannelIds) {
+		if(channelId == config.adminChannelIds[i]) return true;
+	}
+	return false;
+}
+
+function isBlacklistedChannel(channelId) {
+	for (i in config.blackChannelIds) {
+		if(channelId == config.blackChannelIds[i]) return true;
+	}
+	return false;
+}
+
+
 bot.on("ready", function() {
 	// The status disappears after while for some reason
 	bot.user.setActivity(`everything you do`, { type: 'WATCHING' });
@@ -255,15 +270,20 @@ bot.on("message", function(message) {
 	if (message.author.equals(bot.user)) return;
 
 	// Log all user messages
-	// Message can be empty if user send file (like image) with no message
-	// There's no point logging the empty message
-	if(message.content != "") {
-		writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content, message.id);
-	}
-	// Log urls for included files
-	if (message.attachments.size > 0) {
-		for(let i = 0; i < message.attachments.size; i++) {
-			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, "<" + message.attachments.array()[i].url + ">", message.id);
+
+	// Skip blacklisted channels
+	let skipLog = isBlacklistedChannel(message.channel.id);
+	if(skipLog == false) {
+		// Message can be empty if user send file (like image) with no message
+		// There's no point logging the empty message
+		if(message.content != "") {
+			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content, message.id);
+		}
+		// Log urls for included files
+		if (message.attachments.size > 0) {
+			for(let i = 0; i < message.attachments.size; i++) {
+				writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, "<" + message.attachments.array()[i].url + ">", message.id);
+			}
 		}
 	}
 
@@ -274,7 +294,7 @@ bot.on("message", function(message) {
 		let msg = message.content.replace(/ +(?= )/g,'');
 		// Put arguments on their own array
 		const args = msg.split(' ').slice(1);
-		if  (msg.startsWith(prefix)) {
+		if  (msg.startsWith(config.prefix)) {
 			const command = msg.substring(1).toLowerCase().split(" ");
 			let precommand = command.shift(); // Remove the prefix as it can be changed from config
 			// Variables to store fixed parameters in later
@@ -286,6 +306,11 @@ bot.on("message", function(message) {
 				break;		
 
 				case "printlog":
+					if(args.length < 2) {
+						message.channel.send("Invalid amount of parameters!\nThis command needs channel and time as parameters");
+						return;
+					}
+
 					// Printing admin is special case
 					if(args[0] != "admin") { 
 						// Check and fix formatting so it's possible to use mention as well
@@ -307,7 +332,7 @@ bot.on("message", function(message) {
 					}
 					
 					// Prevent from accidentally showing the logs in public
-					if(message.channel.id != config.adminChannelId) {
+					if(!isAdminChannel(message.channel.id)) {
 						let str = "**Heads up!**\n" + 
 								  "You are trying to print logs in non-admin channel!\n" +
 								  "Are you sure you want everyone to see the logs?\n" + 
@@ -318,6 +343,11 @@ bot.on("message", function(message) {
 				break;
 
 				case "clearlog":
+					if(args.length < 1) {
+						message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
+						return;
+					}
+
 					// Check and fix formatting so it's possible to use mention as well
 					channelId = checkChannelFormat(args[0]);
 					if(channelId == -1) {

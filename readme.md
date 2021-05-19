@@ -17,7 +17,9 @@ Should work on multiple servers at the same time but only one admin channel can 
   "token" : "bot_login_token",
   "prefix" : ">",
   "embedColor": "hex_color",
-  "adminChannelId" : "admin-only_channel_id", (In this channel bot wont double check the print)
+  "adminChannelIds" : ["channel_id", "channel_id", ...], (In these channel bot wont double check the print))
+  "blackChannelIds" : ["channel_id", "channel_id", ...], (These channels won't be logged)
+  "errMsgChannel" : "channel_id", (The bot will inform critical errors here)
   "localTime" : false (Timestamps in machine's local time or UTC)
 }
 ```
