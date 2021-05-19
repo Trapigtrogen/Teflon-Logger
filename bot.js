@@ -125,7 +125,7 @@ function combineLogs(dirPath) {
 	// Reset combined log
 	newPath = dirPath + "/" + newName;
 	if(fileExists(newPath)) {
-		fs.unlinkSync(newPath);
+		fs.unlink(newPath);
 	}
 
 	fs.readdirSync(dirPath).forEach((file) => {
