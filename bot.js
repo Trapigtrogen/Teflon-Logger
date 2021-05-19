@@ -147,10 +147,10 @@ function writeLog(dirPath, filename, username, line, messageId) {
 		else {
 			let str;
 			if(messageId < 0) {
-				str = getTime() + "\t" + username + ":\t" + line + '\n';
+				str = getTime() + "\t\t" + username + ":\t\t" + line + '\n';
 			}
 			else {
-				str = getTime() + "\t" + username + ":\t" + line + "\t (messageID: " + messageId + ')\n';
+				str = getTime() + "\t\t" + username + ":\t\t" + line + "    (messageID: " + messageId + ')\n';
 			}
 			writeFile(dirPath + "/" + filename, str);
 		}
@@ -339,8 +339,8 @@ bot.on("message", function(message) {
 
 // Log edited messages with old and new content
 bot.on('messageUpdate', (oldMessage, newMessage) => {
-	let str = "edited message (ID: " + oldMessage.id + ") Content: " + oldMessage.content + " -> " + newMessage.content;
-	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str, -1);
+	let str = "edited message: " + oldMessage.content + " -> " + newMessage.content;
+	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str, oldMessage.id);
 });
 
 // Log removed messages
