@@ -97,8 +97,8 @@ function checkTimeFormat(timeParam) {
 }
 
 
-async function writeFile( filepath, str ) {
-	fs.appendFileSync(filepath, str, 'utf8', (err) => {
+async function writeFile( filePath, str ) {
+	fs.appendFileSync(filePath, str, 'utf8', (err) => {
 		if (err) {
 			console.warn(err);
 			if ( bot.channels.cache.get(config.errMsgChannel) ) {
@@ -108,9 +108,9 @@ async function writeFile( filepath, str ) {
 	});
 }
 
-async function removeFolder(path) {
+async function removeFolder(dirPath) {
 	// delete directory recursively
-	fs.rmdirSync(path, { recursive: true }, (err) => {
+	fs.rmdirSync(dirPath, { recursive: true }, (err) => {
 		if (err) {
 			console.log("Couldn't remove logs! ", err);
 		}
@@ -118,19 +118,19 @@ async function removeFolder(path) {
 }
 
 // Create all-in-one channel log
-function combineLogs(path) {
+function combineLogs(dirPath) {
 	let newPath; // Store new file path
 	let newName = "combined.log";
 
 	// Reset combined log
-	newPath = path + "/" + newName;
+	newPath = dirPath + "/" + newName;
 	if(fileExists(newPath)) {
 		fs.unlinkSync(newPath);
 	}
 
-	fs.readdirSync(path).forEach((file) => {
+	fs.readdirSync(dirPath).forEach((file) => {
 		 if(file != newPath) {
-			writeFile(newPath, fs.readFileSync(path + "/" + file).toString());
+			writeFile(newPath, fs.readFileSync(dirPath + "/" + file).toString());
 		 }
 	})
 	return newPath;
@@ -138,8 +138,8 @@ function combineLogs(path) {
 
 
 // Write line to file
-function writeLog(path, filename, username, line, messageId) {
-	ensureFolderExists(path, 0744, function(err) {
+function writeLog(dirPath, filename, username, line, messageId) {
+	ensureFolderExists(dirPath, 0744, function(err) {
 		if (err) {
 			console.log("couldn't create folder");
 			return;
@@ -152,7 +152,7 @@ function writeLog(path, filename, username, line, messageId) {
 			else {
 				str = getTime() + "\t" + username + ":\t" + line + "\t (messageID: " + messageId + ')\n';
 			}
-			writeFile(path + "/" + filename, str);
+			writeFile(dirPath + "/" + filename, str);
 		}
 	});
 }
@@ -194,7 +194,7 @@ async function printLog(destination, channelId, date, usedBy) {
 	else destination.send("No log found for: <#" + channelId + "> dated: " + date);
 }
 
-// Remove channel's folder
+// Remove channel's log folder
 function removeLog(destination, channelId, usedBy) {
 	let channelName = bot.channels.cache.get(channelId).name;
 	// Normal remove
@@ -337,12 +337,17 @@ bot.on("message", function(message) {
 	}
 });
 
-
+// Log edited messages with old and new content
 bot.on('messageUpdate', (oldMessage, newMessage) => {
-	let str = "edited message " + oldMessage.id + " " + oldMessage.content + " -> " + newMessage.content;
+	let str = "edited message (ID: " + oldMessage.id + ") Content: " + oldMessage.content + " -> " + newMessage.content;
 	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str, -1);
- });
+});
 
+// Log removed messages
+bot.on ("messageDelete", message => {
+	let str = message.member.user.tag + ": " + message.content;
+	writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", "Removed message", str, message.id);
+});
 
 bot.on('uncaughtException', (e) => console.error(e));
 bot.on('error', (e) => console.error(e));
