@@ -4,6 +4,9 @@ const fs = require('fs-extra');
 const moment = require('moment');
 const bot = new Discord.Client({ disableMentions: 'none' });
 
+
+// TODO: Command to get all filenames for channel
+
 let adminLogPath = "./logs/admin";
 
 const helpMessage = new Discord.MessageEmbed()
@@ -49,20 +52,6 @@ function ensureFolderExists(path, mask, cb) {
         } else cb(null); // Successfully created folder
     });
 }
-
-async function fileExists(filename) {
-    try {
-        await fs.promises.stat(filename);
-        return true;
-    } catch (err) {
-        if (err.code === 'ENOENT') {
-            return false;
-        } else {
-            throw err;
-        }
-    }
-}
-
 
 // Check if channel parameter is valid
 function checkChannelFormat(channelParam) {
@@ -124,7 +113,7 @@ function combineLogs(dirPath) {
 
 	// Reset combined log
 	newPath = dirPath + "/" + newName;
-	if(fs.existsSync(newPath)) { // My own function doesn't work here
+	if(fs.existsSync(newPath)) {
 		fs.unlinkSync(newPath);
 	}
 
@@ -178,16 +167,22 @@ async function printLog(destination, channelId, date, usedBy) {
 		dirpath = "./logs/" + channelId;
 	}
 
-	// Default file
+	// Path for file for now
 	fullpath = dirpath + "/" + date + ".log";
 
-	// If user wants to print all logs for the channel
+	// Prevent crashing if there's no logs at all
+	ensureFolderExists(dirpath, 0744, function(err) {
+		if (err) console.warn("couldn't create folder for printed channel");
+	});
+
+	// Override if user wants to print all logs for the channel
 	if(date == "all") {
-		// Get all files in folder
+		// Get all files in folder and change filepath to this
 		fullpath = combineLogs(dirpath);
 	}
 
-	if (fileExists(fullpath)) {
+	// Does that date's log exist
+	if (fs.existsSync(fullpath)) {
 		// Send as file since the logs will easily be more than 2000chars
 		destination.send("Log for channel: <#" + channelId + "> dated: " + date + " UTC", { files: [fullpath] });
 	}
@@ -259,7 +254,7 @@ bot.on("ready", function() {
 	// The status disappears after while for some reason
 	bot.user.setActivity(`everything you do`, { type: 'WATCHING' });
 	ensureFolderExists("./logs/", 0744, function(err) {
-		if (err) console.warn("couldn't create folder logs")
+		if (err) console.warn("couldn't create folder logs");
 	});
 	console.log("Setup Done!");
 });
