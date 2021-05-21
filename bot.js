@@ -55,14 +55,18 @@ function ensureFolderExists(path, mask, cb) {
 
 // Check if channel parameter is valid
 function checkChannelFormat(channelParam) {
-	let fixedId = channelParam;
+	// Is the parameter given at all
+	if(channelParam) {
+		// Skip check for admin
+		if(channelParam == "admin") return channelParam;
 
-	// Remove extra characters and give number only
-	// Reveals both wrong formatting and if mention was used
-	fixedId = channelParam.replace(/\D/g, "");
+		// Remove extra characters and give number only
+		// Reveals wrong id and changes mention to id
+		let fixedId = channelParam.replace(/\D/g, "");
 
-	// channel ids are 18 characters of numbers
-	if(fixedId.length == 18) return fixedId;
+		// channel ids are 18 characters of numbers
+		if(fixedId.length == 18) return fixedId;
+	}
 
 	// At this point the value is just plain wrong. Send error code
 	return -1;
@@ -71,14 +75,17 @@ function checkChannelFormat(channelParam) {
 
 // Check if timeframe parameter is valid
 function checkTimeFormat(timeParam) {
-	// Skip check for all
-	if(timeParam == "all") return timeParam;
+	// Is the parameter given at all
+	if(timeParam) {
+		// Skip check for all
+		if(timeParam == "all") return timeParam;
 
-	if(timeParam.length != 10) return -1; // Wrong amount of characters
+		if(timeParam.length != 10) return -1; // Wrong amount of characters
 
-	// Proper check for format YYYY-MM-DD
-	if(/(19|20)[0-9]{2}-((02-(0[1-9]|[1-2][0-9]))|((01|03|05|07|08|10|12)-(0[1-9]|[1-2][0-9]|3[0-1]))|((04|06|09|11)-(0[1-9]|[1-2][0-9]|30)))/.test(timeParam)) {
-		return timeParam;
+		// Proper check for format YYYY-MM-DD
+		if(/(19|20)[0-9]{2}-((02-(0[1-9]|[1-2][0-9]))|((01|03|05|07|08|10|12)-(0[1-9]|[1-2][0-9]|3[0-1]))|((04|06|09|11)-(0[1-9]|[1-2][0-9]|30)))/.test(timeParam)) {
+			return timeParam;
+		}
 	}
 
 	// At this point the value is just plain wrong. Send error code
@@ -150,12 +157,12 @@ function writeLog(dirPath, filename, username, line, messageId) {
 async function printLog(destination, channelId, date, usedBy) {
 	let dirpath; // Store the folder path
 	let fullpath; // Store filepath here
-	let channelName = bot.channels.cache.get(channelId).name;
-
+	
 	// Normal log
 	if(channelId != "admin") {
+		let channelName = bot.channels.cache.get(channelId).name;
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + channelName + " dated: " + date, -1);
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + channelName + " - dated " + date, -1);
 		// Set file paths
 		dirpath = "./logs/" + channelId + "-" + channelName;
 	}
@@ -190,33 +197,29 @@ async function printLog(destination, channelId, date, usedBy) {
 }
 
 // Remove channel's log folder
-function removeLog(destination, channelId, usedBy) {
-	let channelName = bot.channels.cache.get(channelId).name;
-	// Normal remove
-	if(channelId != "admin") {
+function removeLog(message, channelId, usedBy) {
+	// Prevent removing admin logs
+	if(channelId == "admin") {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + channelId + "-" + channelName, -1);
-		
-		try {
-			removeFolder("./logs/" + channelId + "-" + channelName);
-			destination.send("Logs removed for channel: <#" + channelId+ ">!");
-		}
-		catch (err) {
-			console.warn(err);
-		}
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "tried to remove admin logs", -1);
+		message.channel.send("Admin logs cannot be removed for safety reasons!");
+		return;
 	}
 
-	// Prevent removing admin logs
-	else {
-		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Tried to remove admin logs", -1);
-		destination.send("Admin logs cannot be removed!");
-	}
+	// Normal remove
+	let channelName = bot.channels.cache.get(channelId).name;
+
+	// Confirm
+	let str = "Are you sure you want to clear all logs for channel <#" + channelId + ">?";
+	requireConfirmation(message.author.id, message.channel, str, removeFolder, ["./logs/" + channelId + "-" + channelName], "Logs removed for channel: <#" + channelId+ ">!");
+
+	// Mark usage of this to bot log
+	writeLog(adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + channelId + "-" + channelName, -1);
 }
 
 
 // General confirmation. Works with any function
-function requireConfirmation(userId, destination, str, func, parameters) {
+function requireConfirmation(userId, destination, str, func, parameters, successMessage) {
     destination.send(str)
 	.then(function(msg) {
 		msg.react("👍");
@@ -225,11 +228,12 @@ function requireConfirmation(userId, destination, str, func, parameters) {
 		{ max: 1, time: 30000 }).then(collected => {
 				if (collected.first().emoji.name == '👍') {
 					func.apply(this, parameters); // Call the given function
+					if(successMessage) destination.send(successMessage);
 				}
 				else
-				destination.send('Printing logs cancelled');
+				destination.send('Cancelled');
 		}).catch(() => {
-			destination.send('Timeout: Printing logs cancelled');
+			destination.send('Timeout: Cancelled automatically');
 		});
 	});
 }
@@ -290,38 +294,33 @@ bot.on("message", function(message) {
 		let msg = message.content.replace(/ +(?= )/g,'');
 		// Put arguments on their own array
 		const args = msg.split(' ').slice(1);
+
 		if  (msg.startsWith(config.prefix)) {
 			const command = msg.substring(1).toLowerCase().split(" ");
 			let precommand = command.shift(); // Remove the prefix as it can be changed from config
-			// Variables to store fixed parameters in later
-			let channelId;
-			let timeFrame;
+			// Fixed parameters
+			let channelId = checkChannelFormat(args[0]);
+			let timeFrame = checkTimeFormat(args[1]);
+
 			switch(precommand) {	
 				case "help":
 					message.channel.send({embed:helpMessage});
 				break;		
 
 				case "printlog":
+					// This command needs channel and time parameters
 					if(args.length < 2) {
 						message.channel.send("Invalid amount of parameters!\nThis command needs channel and time as parameters");
 						return;
 					}
 
-					// Printing admin is special case
-					if(args[0] != "admin") { 
-						// Check and fix formatting so it's possible to use mention as well
-						channelId = checkChannelFormat(args[0]);
-						if(channelId == -1) {
-							message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
-							return;
-						}
-					}
-					else {
-						channelId = "admin";
+					// Check if channel parameter was give correctly
+					if(channelId == -1) {
+						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
+						return;
 					}
 
-					// Check time format: Currently only yyyy-mm-dd
-					timeFrame = checkTimeFormat(args[1]);
+					// Check if date parameter was give correctly
 					if(timeFrame == -1) {
 						message.channel.send("Invalid time format! Only YYYY-MM-DD is supported");
 						return;
@@ -339,19 +338,18 @@ bot.on("message", function(message) {
 				break;
 
 				case "clearlog":
-					if(args.length < 1) {
+					// This command needs channel parameter
+					if (args.length < 1) {
 						message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
 						return;
 					}
 
-					// Check and fix formatting so it's possible to use mention as well
-					channelId = checkChannelFormat(args[0]);
-					if(channelId == -1) {
+					// Check if channel parameter was give correctly
+					if (channelId == -1) {
 						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
 						return;
 					}
-					let str = "Are you sure you want to clear all logs for channel <#" + channelId + ">?";
-					requireConfirmation(message.author.id, message.channel, str, removeLog, [message.channel, channelId, message.member.user.tag]);
+					removeLog(message, channelId, message.member.user.tag);
 					
 				break;
 				
