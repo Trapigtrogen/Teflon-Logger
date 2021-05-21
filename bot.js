@@ -272,12 +272,13 @@ bot.on("message", function(message) {
 		// Message can be empty if user send file (like image) with no message
 		// There's no point logging the empty message
 		if(message.content != "") {
-			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.content, message.id);
+			let cleanMessage = message.content.replace(/\n/g, " <new_Line> ");
+			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, cleanMessage, message.id);
 		}
-		// Log urls for included files
+		// Log urls for attached files
 		if (message.attachments.size > 0) {
 			for(let i = 0; i < message.attachments.size; i++) {
-				writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, "<" + message.attachments.array()[i].url + ">", message.id);
+				writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.attachments.array()[i].url, message.id);
 			}
 		}
 	}
