@@ -265,8 +265,12 @@ bot.on("ready", function() {
 
 
 bot.on("message", function(message) {
-	// Ignore bot's own messages when in command mode 
-	if (message.author.equals(bot.user)) return;
+	// Ignore any bot messages
+	if(message.author.bot) return;
+
+	// Some messages (I'm guessing it was a webhook) don't have message.member.user
+	if(!message.member.user) messageByUser = "webhook";
+	else messageByUser = messsage.member.user.tag;
 
 	// Log all user messages
 
@@ -277,12 +281,12 @@ bot.on("message", function(message) {
 		// There's no point logging the empty message
 		if(message.content != "") {
 			let cleanMessage = message.content.replace(/\n/g, " <new_Line> ");
-			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, cleanMessage, message.id);
+			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", messageByUser, cleanMessage, message.id);
 		}
-		// Log urls for attached files
+		// Log urls for attached files 
 		if (message.attachments.size > 0) {
 			for(let i = 0; i < message.attachments.size; i++) {
-				writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", message.member.user.tag, message.attachments.array()[i].url, message.id);
+				writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
 			}
 		}
 	}
@@ -332,9 +336,9 @@ bot.on("message", function(message) {
 								  "You are trying to print logs in non-admin channel!\n" +
 								  "Are you sure you want everyone to see the logs?\n" + 
 								  "This will be timed out and automatically canceled after half a minute";
-						requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, channelId, timeFrame, message.member.user.tag]);
+						requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, channelId, timeFrame, messageByUser]);
 					}
-					else printLog(message.channel, channelId, timeFrame, message.member.user.tag);
+					else printLog(message.channel, channelId, timeFrame, messageByUser);
 				break;
 
 				case "clearlog":
@@ -349,7 +353,7 @@ bot.on("message", function(message) {
 						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
 						return;
 					}
-					removeLog(message, channelId, message.member.user.tag);
+					removeLog(message, channelId, messageByUser);
 					
 				break;
 				
@@ -369,7 +373,13 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 
 // Log removed messages
 bot.on ("messageDelete", message => {
-	let str = message.member.user.tag + ": " + message.content;
+	let str;
+	if(message.content) {
+		str = message.member.user.tag + ": " + message.content;
+	}
+	else {
+		str = message.member.user.tag;
+	}
 	writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", "Removed message", str, message.id);
 });
 
