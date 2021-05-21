@@ -269,8 +269,9 @@ bot.on("message", function(message) {
 	if(message.author.bot) return;
 
 	// Some messages (I'm guessing it was a webhook) don't have message.member.user
+	let messageByUser;
 	if(!message.member.user) messageByUser = "webhook";
-	else messageByUser = messsage.member.user.tag;
+	else messageByUser = message.member.user.tag;
 
 	// Log all user messages
 
