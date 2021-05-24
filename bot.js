@@ -94,14 +94,12 @@ function checkTimeFormat(timeParam) {
 
 
 async function writeFile( filePath, str ) {
-	fs.appendFileSync(filePath, str, 'utf8', (err) => {
-		if (err) {
-			console.warn(err);
-			if ( bot.channels.cache.get(config.errMsgChannel) ) {
-				bot.channels.cache.get(config.errMsgChannel).send("Couldn't write log! Plz help :sob:");
-			}
-		}
+	let stream = fs.createWriteStream(filePath, {flags: 'a'});
+	stream.write(str, function() {
+	// Now the data has been written.
 	});
+
+	stream.end();
 }
 
 async function removeFolder(dirPath) {
@@ -368,7 +366,7 @@ bot.on("message", function(message) {
 
 // Log edited messages with old and new content
 bot.on('messageUpdate', (oldMessage, newMessage) => {
-	let str = "edited message: " + oldMessage.content + " -> " + newMessage.content;
+	let str = "Edited message: " + oldMessage.content + " -> " + newMessage.content;
 	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", newMessage.member.user.tag, str, oldMessage.id);
 });
 
