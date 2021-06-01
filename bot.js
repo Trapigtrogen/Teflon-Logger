@@ -372,13 +372,11 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 
 // Log removed messages
 bot.on ("messageDelete", message => {
-	let str;
-	if(message.content) {
-		str = message.member.user.tag + ": " + message.content;
-	}
-	else {
-		str = message.member.user.tag;
-	}
+	let str = "";
+	// All this information either can exist or not
+	if(message.member.user) str += message.member.user.tag; 
+	if(message.content) str += ": " + message.content;
+	
 	writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", "Removed message", str, message.id);
 });
 
