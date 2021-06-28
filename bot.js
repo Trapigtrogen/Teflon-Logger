@@ -371,7 +371,7 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 	// Sometimes when the bot has been offline and someone edits the bot cannot get user info and crashes
 	// This should fix that
 	let user = "Unknown";
-	if(newMessage.member.member) user = newMessage.member.user.tag;
+	if(newMessage.member) user = newMessage.member.user.tag;
 	else if(oldMessage.member) user = oldMessage.member.user.tag;
 
 	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", user, str, oldMessage.id);
