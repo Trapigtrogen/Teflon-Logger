@@ -4,10 +4,8 @@ const fs = require('fs-extra');
 const moment = require('moment');
 const bot = new Discord.Client({ disableMentions: 'none' });
 
-
-// TODO: Command to get all filenames for channel
-
 let adminLogPath = "./logs/admin";
+let combinedLogsFileName = "combined.log";
 
 const helpMessage = new Discord.MessageEmbed()
 .setColor(config.embedColor)
@@ -18,6 +16,7 @@ const helpMessage = new Discord.MessageEmbed()
 																		'Note that for the time only YYYY-MM-DD is supported (include leading 0 for single digit dates)\n' + 
 																		'For admin log you can replace the channel with "admin"\n' +
 																		'Replace timestamp with "all" to get all of the channel\'s logs in one file' },
+	{ name: '>listlogs [channel mention or id]', value: 'lists all log files for the channel' },
 	{ name: '>clearlog [channel mention or id]', value: 'Removes the channels log folder. This is _**ALL**_ logs for that channel' }
 )
 .setThumbnail('https://puu.sh/AZxe5.png')
@@ -113,11 +112,8 @@ async function removeFolder(dirPath) {
 
 // Create all-in-one channel log
 function combineLogs(dirPath) {
-	let newPath; // Store new file path
-	let newName = "combined.log";
-
 	// Reset combined log
-	newPath = dirPath + "/" + newName;
+	let newPath = dirPath + "/" + combinedLogsFileName;
 	if(fs.existsSync(newPath)) {
 		fs.unlinkSync(newPath);
 	}
@@ -130,6 +126,17 @@ function combineLogs(dirPath) {
 	return newPath;
 }
 
+// List all log files in channel folder
+function listLogs(dirPath) {
+	let listStr = "";
+
+	fs.readdirSync(dirPath).forEach((file) => {
+		if(file != combinedLogsFileName) {
+			listStr += file + "\n";
+		}
+	})
+	return listStr;
+}
 
 // Write line to file
 function writeLog(dirPath, filename, username, line, messageId) {
@@ -141,10 +148,10 @@ function writeLog(dirPath, filename, username, line, messageId) {
 		else {
 			let str;
 			if(messageId < 0) {
-				str = getTime() + "\t" + username + ":\t\t" + line + '\n';
+				str = getDate() + " " + getTime() + "\t" + username + ":\t\t" + line + '\n';
 			}
 			else {
-				str = getTime() + "\t" + username + ":\t\t" + line + "    (messageID: " + messageId + ')\n';
+				str = getDate() + " " + getTime() + "\t" + username + ":\t\t" + line + "    (messageID: " + messageId + ')\n';
 			}
 			writeFile(dirPath + "/" + filename, str);
 		}
@@ -160,17 +167,15 @@ async function printLog(destination, channelId, date, usedBy) {
 	if(channelId != "admin") {
 		let channelName = bot.channels.cache.get(channelId).name;
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + "-" + channelName + " - dated " + date, -1);
-		// Set file paths
-		dirpath = "./logs/" + channelId + "-" + channelName;
+		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + " - " + channelName + " - dated " + date, -1);
 	}
 	// Admin log
 	else {
 		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date, -1);
-		// Set file paths
-		dirpath = "./logs/" + channelId;
 	}
+	// Set file paths
+	dirpath = "./logs/" + channelId;
 
 	// Path for file for now
 	fullpath = dirpath + "/" + date + ".log";
@@ -204,15 +209,12 @@ function removeLog(message, channelId, usedBy) {
 		return;
 	}
 
-	// Normal remove
-	let channelName = bot.channels.cache.get(channelId).name;
-
 	// Confirm
 	let str = "Are you sure you want to clear all logs for channel <#" + channelId + ">?";
-	requireConfirmation(message.author.id, message.channel, str, removeFolder, ["./logs/" + channelId + "-" + channelName], "Logs removed for channel: <#" + channelId+ ">!");
+	requireConfirmation(message.author.id, message.channel, str, removeFolder, ["./logs/" + channelId], "Logs removed for channel: <#" + channelId + ">!");
 
 	// Mark usage of this to bot log
-	writeLog(adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + channelId + "-" + channelName, -1);
+	writeLog(adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + channelId, -1);
 }
 
 
@@ -338,6 +340,23 @@ bot.on("message", function(message) {
 						requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, channelId, timeFrame, messageByUser]);
 					}
 					else printLog(message.channel, channelId, timeFrame, messageByUser);
+				break;
+
+				case "listlogs":
+					// This command needs channel parameter
+					if (args.length < 1) {
+						message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
+						return;
+					}
+
+					// Check if channel parameter was give correctly
+					if (channelId == -1) {
+						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
+						return;
+					}
+
+					let str = listLogs("./logs/" + channelId);
+					message.channel.send("log files for <#" + channelId + ">:\n" + str);
 				break;
 
 				case "clearlog":
