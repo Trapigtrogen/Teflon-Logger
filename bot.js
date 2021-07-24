@@ -159,10 +159,7 @@ function writeLog(dirPath, filename, username, line, messageId) {
 }
 
 // Send log file to discord
-async function printLog(destination, channelId, date, usedBy) {
-	let dirpath; // Store the folder path
-	let fullpath; // Store filepath here
-	
+async function printLog(destination, channelId, date, usedBy) {	
 	// Normal log
 	if(channelId != "admin") {
 		let channelName = bot.channels.cache.get(channelId).name;
@@ -174,11 +171,12 @@ async function printLog(destination, channelId, date, usedBy) {
 		// Mark usage of this to bot log
 		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date, -1);
 	}
+	
 	// Set file paths
-	dirpath = "./logs/" + channelId;
+	let dirpath = "./logs/" + channelId.guild.id + "/" + channelId;
 
 	// Path for file for now
-	fullpath = dirpath + "/" + date + ".log";
+	let fullpath = dirpath + "/" + date + ".log";
 
 	// Prevent crashing if there's no logs at all
 	ensureFolderExists(dirpath, 0744, function(err) {
@@ -282,12 +280,12 @@ bot.on("message", function(message) {
 		// There's no point logging the empty message
 		if(message.content != "") {
 			let cleanMessage = message.content.replace(/\n/g, " <new_Line> ");
-			writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", messageByUser, cleanMessage, message.id);
+			writeLog("./logs/" + message.channel.guild.id + "/" + message.channel, getDate() + ".log", messageByUser, cleanMessage, message.id);
 		}
 		// Log urls for attached files 
 		if (message.attachments.size > 0) {
 			for(let i = 0; i < message.attachments.size; i++) {
-				writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
+				writeLog("./logs/" + message.channel.guild.id + "/" + message.channel, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
 			}
 		}
 	}
@@ -295,7 +293,7 @@ bot.on("message", function(message) {
 // COMMAND MODE:
 	// Only continue if user is full admin
 	if(message.member.hasPermission('ADMINISTRATOR')) {
-		// Remove axtra spaces
+		// Remove extra spaces
 		let msg = message.content.replace(/ +(?= )/g,'');
 		// Put arguments on their own array
 		const args = msg.split(' ').slice(1);
@@ -393,7 +391,7 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 	if(newMessage.member) user = newMessage.member.user.tag;
 	else if(oldMessage.member) user = oldMessage.member.user.tag;
 
-	writeLog("./logs/" + newMessage.channel + "-" + newMessage.channel.name, getDate() + ".log", user, str, oldMessage.id);
+	writeLog("./logs/" + newMessage.channel.guild.id + "/" + newMessage.channel, getDate() + ".log", user, str, oldMessage.id);
 });
 
 // Log removed messages
@@ -403,7 +401,7 @@ bot.on ("messageDelete", message => {
 	if(message.member.user) str += message.member.user.tag; 
 	if(message.content) str += ": " + message.content;
 	
-	writeLog("./logs/" + message.channel + "-" + message.channel.name, getDate() + ".log", "Removed message", str, message.id);
+	writeLog("./logs/" + message.channel.guild.id + "/" + message.channel, getDate() + ".log", "Removed message", str, message.id);
 });
 
 bot.on('uncaughtException', (e) => console.error(e));
