@@ -4,8 +4,17 @@ const fs = require('fs-extra');
 const moment = require('moment');
 const bot = new Discord.Client({ disableMentions: 'none' });
 
-let adminLogPath = "./logs/admin";
+// param_variables are user given
+
+let logsFolder = "./logs/";
+let adminLogPath = "admin/";
 let combinedLogsFileName = "combined.log";
+
+// Permissions for using commands:
+// Everyone who can read audit log can use printing commands
+let PRINT_PERMISSION = "VIEW_AUDIT_LOG";
+// Only full admins (the 'administrator' checkbox is on) can remove logs
+let EDIT_PERMISSION = "ADMINISTRATOR";
 
 const helpMessage = new Discord.MessageEmbed()
 .setColor(config.embedColor)
@@ -16,7 +25,7 @@ const helpMessage = new Discord.MessageEmbed()
 																		'Note that for the time only YYYY-MM-DD is supported (include leading 0 for single digit dates)\n' + 
 																		'For admin log you can replace the channel with "admin"\n' +
 																		'Replace timestamp with "all" to get all of the channel\'s logs in one file' },
-	{ name: '>listlogs [channel mention or id]', value: 'lists all log files for the channel' },
+	{ name: '>listlogs [channel mention or id]', value: 'Lists all log files for the channel' },
 	{ name: '>clearlog [channel mention or id]', value: 'Removes the channels log folder. This is _**ALL**_ logs for that channel' }
 )
 .setThumbnail('https://puu.sh/AZxe5.png')
@@ -139,80 +148,102 @@ function listLogs(dirPath) {
 }
 
 // Write line to file
-function writeLog(dirPath, filename, username, line, messageId) {
+function writeLog(guildId, channelId, filename, username, line, messageId) {
+	let dirPath = logsFolder + guildId;
+
+	// Check guild folder
 	ensureFolderExists(dirPath, 0744, function(err) {
 		if (err) {
-			console.log("couldn't create folder");
+			console.log("couldn't create guild folder");
 			return;
 		}
 		else {
-			let str;
-			if(messageId < 0) {
-				str = getDate() + " " + getTime() + "\t" + username + ":\t\t" + line + '\n';
-			}
-			else {
-				str = getDate() + " " + getTime() + "\t" + username + ":\t\t" + line + "    (messageID: " + messageId + ')\n';
-			}
-			writeFile(dirPath + "/" + filename, str);
+			dirPath += "/" + channelId;
+			// Check channel folder
+			ensureFolderExists(dirPath, 0744, function(err) {
+				if (err) {
+					console.log("couldn't create channel folder");
+					return;
+				}
+				else {
+					let str;
+					if(messageId < 0) {
+						str = getDate() + " " + getTime() + "\t" + username + ":\t\t" + line + '\n';
+					}
+					else {
+						str = getDate() + " " + getTime() + "\t" + username + ":\t\t" + line + "    (messageId: " + messageId + ')\n';
+					}
+					writeFile(dirPath + "/" + filename, str);
+				}
+			});
 		}
 	});
 }
 
 // Send log file to discord
-async function printLog(destination, channelId, date, usedBy) {	
+async function printLog(destination, guildId, param_channelId, param_date, usedBy) {	
 	// Normal log
-	if(channelId != "admin") {
-		let channelName = bot.channels.cache.get(channelId).name;
+	if(param_channelId != "admin") {
+		let channelName = bot.channels.cache.get(param_channelId).name;
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + channelId + " - " + channelName + " - dated " + date, -1);
+		writeLog(guildId, adminLogPath, getDate() + ".log", usedBy, "Printed log for: " + param_channelId + " - " + channelName + " - dated " + param_date, -1);
 	}
 	// Admin log
 	else {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + date, -1);
+		writeLog(guildId, adminLogPath, getDate() + ".log", usedBy, "Printed admin log dated: " + param_date, -1);
 	}
-	
+
 	// Set file paths
-	let dirpath = "./logs/" + channelId.guild.id + "/" + channelId;
+	let dirpath = logsFolder + guildId + "/" + param_channelId;
 
 	// Path for file for now
-	let fullpath = dirpath + "/" + date + ".log";
+	let fullpath = dirpath + "/" + param_date + ".log";
 
 	// Prevent crashing if there's no logs at all
-	ensureFolderExists(dirpath, 0744, function(err) {
-		if (err) console.warn("couldn't create folder for printed channel");
+	// Guild
+	ensureFolderExists(logsFolder + guildId, 0744, function(err) {
+		if (err) console.warn("couldn't create guild folder for printed channel");
+		else {
+			// Channel
+			ensureFolderExists(dirpath, 0744, function(err) {
+				if (err) console.warn("couldn't create channel folder for printed channel");
+			});
+		}
 	});
 
 	// Override if user wants to print all logs for the channel
-	if(date == "all") {
+	if(param_date == "all") {
 		// Get all files in folder and change filepath to this
 		fullpath = combineLogs(dirpath);
+
+		// DEBUG: Currently sends empty file if there's no source logs to combine
 	}
 
-	// Does that date's log exist
+	// Does that date's log exist?
 	if (fs.existsSync(fullpath)) {
-		// Send as file since the logs will easily be more than 2000chars
-		destination.send("Log for channel: <#" + channelId + "> dated: " + date + " UTC", { files: [fullpath] });
+		// Send as file since Discord messages cannot be over 2000 characters
+		destination.send("Log for channel: <#" + param_channelId + "> dated: " + param_date + " UTC", { files: [fullpath] });
 	}
-	else destination.send("No log found for: <#" + channelId + "> dated: " + date);
+	else destination.send("No log found for: <#" + param_channelId + "> dated: " + param_date);
 }
 
 // Remove channel's log folder
-function removeLog(message, channelId, usedBy) {
+function removeLog(message, guildId, param_channelId, usedBy) {
 	// Prevent removing admin logs
-	if(channelId == "admin") {
+	if(param_channelId == "admin") {
 		// Mark usage of this to bot log
-		writeLog(adminLogPath, getDate() + ".log", usedBy, "tried to remove admin logs", -1);
+		writeLog(guildId, adminLogPath, getDate() + ".log", usedBy, "tried to remove admin logs", -1);
 		message.channel.send("Admin logs cannot be removed for safety reasons!");
 		return;
 	}
 
 	// Confirm
-	let str = "Are you sure you want to clear all logs for channel <#" + channelId + ">?";
-	requireConfirmation(message.author.id, message.channel, str, removeFolder, ["./logs/" + channelId], "Logs removed for channel: <#" + channelId + ">!");
+	let str = "Are you sure you want to clear all logs for channel <#" + param_channelId + ">?";
+	requireConfirmation(message.author.id, message.channel, str, removeFolder, [logsFolder + guildId + "/" + param_channelId], "Logs removed for channel: <#" + channelId + ">!");
 
 	// Mark usage of this to bot log
-	writeLog(adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + channelId, -1);
+	writeLog(guildId, adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + param_channelId, -1);
 }
 
 
@@ -255,7 +286,7 @@ function isBlacklistedChannel(channelId) {
 bot.on("ready", function() {
 	// The status disappears after while for some reason
 	bot.user.setActivity(`everything you do`, { type: 'WATCHING' });
-	ensureFolderExists("./logs/", 0744, function(err) {
+	ensureFolderExists(logsFolder, 0744, function(err) {
 		if (err) console.warn("couldn't create folder logs");
 	});
 	console.log("Setup Done!");
@@ -280,19 +311,19 @@ bot.on("message", function(message) {
 		// There's no point logging the empty message
 		if(message.content != "") {
 			let cleanMessage = message.content.replace(/\n/g, " <new_Line> ");
-			writeLog("./logs/" + message.channel.guild.id + "/" + message.channel, getDate() + ".log", messageByUser, cleanMessage, message.id);
+			writeLog(message.guild.id, message.channel.id, getDate() + ".log", messageByUser, cleanMessage, message.id);
 		}
 		// Log urls for attached files 
 		if (message.attachments.size > 0) {
 			for(let i = 0; i < message.attachments.size; i++) {
-				writeLog("./logs/" + message.channel.guild.id + "/" + message.channel, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
+				writeLog(message.guild.id, message.channel.id, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
 			}
 		}
 	}
 
 // COMMAND MODE:
 	// Only continue if user is full admin
-	if(message.member.hasPermission('ADMINISTRATOR')) {
+	if(message.member.hasPermission(PRINT_PERMISSION)) {
 		// Remove extra spaces
 		let msg = message.content.replace(/ +(?= )/g,'');
 		// Put arguments on their own array
@@ -302,8 +333,8 @@ bot.on("message", function(message) {
 			const command = msg.substring(1).toLowerCase().split(" ");
 			let precommand = command.shift(); // Remove the prefix as it can be changed from config
 			// Fixed parameters
-			let channelId = checkChannelFormat(args[0]);
-			let timeFrame = checkTimeFormat(args[1]);
+			let param_channelId = checkChannelFormat(args[0]);
+			let param_timeFrame = checkTimeFormat(args[1]);
 
 			switch(precommand) {	
 				case "help":
@@ -318,13 +349,13 @@ bot.on("message", function(message) {
 					}
 
 					// Check if channel parameter was give correctly
-					if(channelId == -1) {
+					if(param_channelId == -1) {
 						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
 						return;
 					}
 
 					// Check if date parameter was give correctly
-					if(timeFrame == -1) {
+					if(param_timeFrame == -1) {
 						message.channel.send("Invalid time format! Only YYYY-MM-DD is supported");
 						return;
 					}
@@ -335,9 +366,9 @@ bot.on("message", function(message) {
 								  "You are trying to print logs in non-admin channel!\n" +
 								  "Are you sure you want everyone to see the logs?\n" + 
 								  "This will be timed out and automatically canceled after half a minute";
-						requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, channelId, timeFrame, messageByUser]);
+						requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, message.guild.id, param_channelId, param_timeFrame, messageByUser]);
 					}
-					else printLog(message.channel, channelId, timeFrame, messageByUser);
+					else printLog(message.channel, message.guild.id, param_channelId, param_timeFrame, messageByUser);
 				break;
 
 				case "listlogs":
@@ -348,29 +379,31 @@ bot.on("message", function(message) {
 					}
 
 					// Check if channel parameter was give correctly
-					if (channelId == -1) {
+					if (param_channelId == -1) {
 						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
 						return;
 					}
 
-					let str = listLogs("./logs/" + channelId);
-					message.channel.send("log files for <#" + channelId + ">:\n" + str);
+					let str = listLogs(logsFolder + message.guild.id + "/" + param_channelId);
+					message.channel.send("log files for <#" + param_channelId + ">:\n" + str);
 				break;
 
 				case "clearlog":
-					// This command needs channel parameter
-					if (args.length < 1) {
-						message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
-						return;
-					}
+					if(message.member.hasPermission(PRINT_PERMISSION)) {
+						// This command needs channel parameter
+						if (args.length < 1) {
+							message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
+							return;
+						}
 
-					// Check if channel parameter was give correctly
-					if (channelId == -1) {
-						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
-						return;
+						// Check if channel parameter was give correctly
+						if (param_channelId == -1) {
+							message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
+							return;
+						}
+						removeLog(message, message.guild.id, param_channelId, messageByUser);
 					}
-					removeLog(message, channelId, messageByUser);
-					
+					else message.send("You don't have permission to remove logs");
 				break;
 				
 				// Don't do anything is it's not command
@@ -391,7 +424,7 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 	if(newMessage.member) user = newMessage.member.user.tag;
 	else if(oldMessage.member) user = oldMessage.member.user.tag;
 
-	writeLog("./logs/" + newMessage.channel.guild.id + "/" + newMessage.channel, getDate() + ".log", user, str, oldMessage.id);
+	writeLog(newMessage.guild.id, newMessage.channel.id, getDate() + ".log", user, str, oldMessage.id);
 });
 
 // Log removed messages
@@ -401,7 +434,7 @@ bot.on ("messageDelete", message => {
 	if(message.member.user) str += message.member.user.tag; 
 	if(message.content) str += ": " + message.content;
 	
-	writeLog("./logs/" + message.channel.guild.id + "/" + message.channel, getDate() + ".log", "Removed message", str, message.id);
+	writeLog(message.guild.id, message.channel.id, getDate() + ".log", "Removed message", str, message.id);
 });
 
 bot.on('uncaughtException', (e) => console.error(e));
