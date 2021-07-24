@@ -19,7 +19,8 @@ let EDIT_PERMISSION = "ADMINISTRATOR";
 const helpMessage = new Discord.MessageEmbed()
 .setColor(config.embedColor)
 .setTitle('Bot automatically logs and organizes all of the channels it has access to')
-.setDescription('Commands:')
+.setDescription('Audit Log reading permission is needed for print and list commands. For editing you need to be full Admin\n\n' +
+				'Commands:')
 .addFields(
 	{ name: '>printlog [channel mention or id] [YYYY-MM-DD]', value: 'Prints logs for given channel for given date.\n' +
 																		'Note that for the time only YYYY-MM-DD is supported (include leading 0 for single digit dates)\n' + 
@@ -240,7 +241,7 @@ function removeLog(message, guildId, param_channelId, usedBy) {
 
 	// Confirm
 	let str = "Are you sure you want to clear all logs for channel <#" + param_channelId + ">?";
-	requireConfirmation(message.author.id, message.channel, str, removeFolder, [logsFolder + guildId + "/" + param_channelId], "Logs removed for channel: <#" + channelId + ">!");
+	requireConfirmation(message.author.id, message.channel, str, removeFolder, [logsFolder + guildId + "/" + param_channelId], "Logs removed for channel: <#" + param_channelId + ">!");
 
 	// Mark usage of this to bot log
 	writeLog(guildId, adminLogPath, getDate() + ".log", usedBy, "Removed logs for: " + param_channelId, -1);
