@@ -5,11 +5,13 @@ Should work on multiple servers at the same time but only one admin channel can 
 ## Features:
 - Logs all channels that it has permissions to read
 - Log organized to folders per channel, files per date
-- Print given date's log from Discord
-- Clear channel log from Discord
-- Safety features like:
-  * double checking printing to public channel
+- Print given date's log with Discord command
+- Remove channel's log with Discord command
+- Logs are separated per guild so they cannot be printed outside of the server
+- Safety features:
+  * Double checking printing to public channel
   * Logging used admin commands on non-removable log for blaming
+  * Permissions are tied to Audit log for printing and Full admin for removing
 
 ## Config.json
 ```
@@ -25,11 +27,13 @@ Should work on multiple servers at the same time but only one admin channel can 
 ```
 
 ## Commands
-Only admins can use commands
+Users with audit log reading permsission can use printlog and listlogs (and help). Full admin mode needed for clearlog.
+The bot will not say or do anything if anyone else tries to use them.
 
 - help - list commands
-- printlog [channel mention or id] [time in YYYY-MM-DD format] - print channel's log for given date
-- clearlog [channel mention or id] - clears the channel's logs
+- printlog [channel mention or id] [time in YYYY-MM-DD format] - Print channel's log for given date
+- listlogs [channel mention or id] - Lists all log files for given channel
+- clearlog [channel mention or id] - Clears the channel's logs
 
 For checking the used admin commands log print with string "admin" as channel name. Admin logs cannot be cleared\
 You can replace timestamp with "all" to get all channel's logs in one file 
