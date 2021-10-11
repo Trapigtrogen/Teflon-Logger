@@ -285,10 +285,10 @@ function isBlacklistedChannel(channelId) {
 
 
 bot.on("ready", function() {
-	// The status disappears after while for some reason
-	bot.user.setActivity(`everything you do`, { type: 'WATCHING' });
+	// DEBUG: The status disappears after while for some reason
+	bot.user.setActivity("everything you do", { type: 3 });
 	ensureFolderExists(logsFolder, 0744, function(err) {
-		if (err) console.warn("couldn't create folder logs");
+		if (err) console.warn("couldn't create folder: logs");
 	});
 	console.log("Setup Done!");
 });
@@ -432,7 +432,9 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 bot.on ("messageDelete", message => {
 	let str = "";
 	// All this information either can exist or not
-	if(message.member.user) str += message.member.user.tag; 
+	if(message.member){
+		if(message.member.user) str += message.member.user.tag;
+	}
 	if(message.content) str += ": " + message.content;
 	
 	writeLog(message.guild.id, message.channel.id, getDate() + ".log", "Removed message", str, message.id);
