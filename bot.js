@@ -68,15 +68,15 @@ const commands = [
 
 const rest = new REST({ version: '10' }).setToken(config.token);
 (async () => {
-	try {
-		await rest.put(
-			Routes.applicationGuildCommands(config.application_id, config.test_guild_id),
-			{ body: commands }
-		);
-		console.log('Successfully reloaded slash commands.');
-	} catch (error) {
-		console.error(error);
-	}
+	//try {
+	//	await rest.put(
+	//		Routes.applicationGuildCommands(config.application_id, config.test_guild_id),
+	//		{ body: commands }
+	//	);
+	//	console.log('Successfully reloaded slash commands.');
+	//} catch (error) {
+	//	console.error(error);
+	//}
 
 	try {
 		await rest.put(
