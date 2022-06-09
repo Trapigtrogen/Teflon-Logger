@@ -1,37 +1,70 @@
-const Discord = require("discord.js");
+const { Client, Intents } = require('discord.js');
 const config = require("./config.json");
 const fs = require('fs-extra');
 const moment = require('moment');
-const bot = new Discord.Client({ disableMentions: 'none' });
+const bot = new Client({ intents: ["GUILDS", "GUILD_MESSAGES", "GUILD_MESSAGE_REACTIONS", "DIRECT_MESSAGES", "DIRECT_MESSAGE_REACTIONS"] });
+
+// Slash commands
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v10');
+
+const commands = [
+	{
+		name: 'help',
+		description: 'Show help message',
+	}
+];
+
+const rest = new REST({ version: '10' }).setToken(config.token);
+(async () => {
+	try {
+		console.log('Started refreshing application (/) commands.');
+
+		const clientId = '843589655509336075';
+		await rest.put(
+			Routes.applicationCommands(clientId),
+			{ body: commands },
+		);
+
+		console.log('Successfully reloaded application (/) commands.');
+	} catch (error) {
+		console.error(error);
+	}
+})();
+
 
 // param_variables are user given
-
-let logsFolder = "./logs/";
-let adminLogPath = "admin/";
-let combinedLogsFileName = "combined.log";
+const logsFolder = "./logs/";
+const adminLogPath = "admin/";
+const combinedLogsFileName = "combined.log";
 
 // Permissions for using commands:
 // Everyone who can read audit log can use printing commands
-let PRINT_PERMISSION = "VIEW_AUDIT_LOG";
+const PRINT_PERMISSION = "VIEW_AUDIT_LOG";
 // Only full admins (the 'administrator' checkbox is on) can remove logs
-let EDIT_PERMISSION = "ADMINISTRATOR";
+const EDIT_PERMISSION = "ADMINISTRATOR";
 
-const helpMessage = new Discord.MessageEmbed()
-.setColor(config.embedColor)
-.setTitle('Bot automatically logs and organizes all of the channels it has access to')
-.setDescription('Audit Log reading permission is needed for print and list commands. For editing you need to be full Admin\n\n' +
-				'Commands:')
-.addFields(
-	{ name: '>printlog [channel mention or id] [YYYY-MM-DD]', value: 'Prints logs for given channel for given date.\n' +
-																		'Note that for the time only YYYY-MM-DD is supported (include leading 0 for single digit dates)\n' + 
-																		'For admin log you can replace the channel with "admin"\n' +
-																		'Replace timestamp with "all" to get all of the channel\'s logs in one file' },
-	{ name: '>listlogs [channel mention or id]', value: 'Lists all log files for the channel' },
-	{ name: '>clearlog [channel mention or id]', value: 'Removes the channels log folder. This is _**ALL**_ logs for that channel' }
-)
-.setThumbnail('https://puu.sh/AZxe5.png')
-.setFooter('Uses of admin commands are stored in special, non-removable logs for safety and blaming reasons');
 
+const helpMessage = {
+	color: config.embedColor,
+	title: 'Bot automatically logs and organizes all of the channels it has access to',
+	description: 'Audit Log reading permission is needed for print and list commands. For editing you need to be full Admin\n\nCommands:',
+	thumbnail: {
+		url: 'https://puu.sh/AZxe5.png'
+	},
+	fields: [
+		{ name: '>printlog [channel mention or id] [YYYY-MM-DD]', value: 'Prints logs for given channel for given date.\n' +
+				'Note that for the time only YYYY-MM-DD is supported (include leading 0 for single digit dates)\n' + 
+				'For admin log you can replace the channel with "admin"\n' +
+				'Replace timestamp with "all" to get all of the channel\'s logs in one file' },
+		{ name: '>listlogs [channel mention or id]', value: 'Lists all log files for the channel' },
+		{ name: '>clearlog [channel mention or id]', value: 'Removes the channels log folder. This is _**ALL**_ logs for that channel' }
+	],
+	timestamp: new Date(),
+	footer: {
+		text: 'Uses of admin commands are stored in special, non-removable logs for safety and blaming reasons'
+	}
+};
 
 // Get date and time. Machines local time or UTC based on config
 function getDate() {
@@ -112,6 +145,12 @@ async function writeFile( filePath, str ) {
 }
 
 async function removeFolder(dirPath) {
+	// Require full admin to remove logs
+	if(!message.member.permissions.has(EDIT_PERMISSION)) {
+		message.reply("You don't have permissions to remove logs");
+		return;
+	}
+
 	// delete directory recursively
 	fs.rmdirSync(dirPath, { recursive: true }, (err) => {
 		if (err) {
@@ -121,7 +160,7 @@ async function removeFolder(dirPath) {
 }
 
 // Create all-in-one channel log
-function combineLogs(dirPath) {
+async function combineLogs(dirPath) {
 	// Reset combined log
 	let newPath = dirPath + "/" + combinedLogsFileName;
 	if(fs.existsSync(newPath)) {
@@ -133,7 +172,7 @@ function combineLogs(dirPath) {
 			writeFile(newPath, fs.readFileSync(dirPath + "/" + file).toString());
 		 }
 	})
-	return newPath;
+	return Promise.resolve(newPath);
 }
 
 // List all log files in channel folder
@@ -182,7 +221,7 @@ function writeLog(guildId, channelId, filename, username, line, messageId) {
 }
 
 // Send log file to discord
-async function printLog(destination, guildId, param_channelId, param_date, usedBy) {	
+async function printLog(destination, guildId, param_channelId, param_date, usedBy) {
 	// Normal log
 	if(param_channelId != "admin") {
 		let channelName = bot.channels.cache.get(param_channelId).name;
@@ -216,7 +255,7 @@ async function printLog(destination, guildId, param_channelId, param_date, usedB
 	// Override if user wants to print all logs for the channel
 	if(param_date == "all") {
 		// Get all files in folder and change filepath to this
-		fullpath = combineLogs(dirpath);
+		fullpath = await combineLogs(dirpath);
 
 		// DEBUG: Currently sends empty file if there's no source logs to combine
 	}
@@ -224,7 +263,10 @@ async function printLog(destination, guildId, param_channelId, param_date, usedB
 	// Does that date's log exist?
 	if (fs.existsSync(fullpath)) {
 		// Send as file since Discord messages cannot be over 2000 characters
-		destination.send("Log for channel: <#" + param_channelId + "> dated: " + param_date + " UTC", { files: [fullpath] });
+		destination.send({
+			files: [fullpath],
+			content: "Log for channel: <#" + param_channelId + "> dated: " + param_date + " (timestamps in UTC)"
+		});
 	}
 	else destination.send("No log found for: <#" + param_channelId + "> dated: " + param_date);
 }
@@ -290,21 +332,27 @@ bot.on("ready", function() {
 	ensureFolderExists(logsFolder, 0744, function(err) {
 		if (err) console.warn("couldn't create folder: logs");
 	});
-	console.log("Setup Done!");
+	console.log("Setup Done! Teflon-logger running");
 });
 
+bot.on('interactionCreate', async interaction => {
+	if (!interaction.isCommand()) return;
 
-bot.on("message", function(message) {
+	if (interaction.commandName === 'help') {
+		await interaction.reply({ embeds: [helpMessage] });
+	}
+});
+
+bot.on("messageCreate", function(message) {
 	// Ignore any bot messages
-	if(message.author.bot) return;
+	if(message.author.bot) { return; }
 
 	// Some messages (I'm guessing it was a webhook) don't have message.member.user
 	let messageByUser;
 	if(!message.member.user) messageByUser = "webhook";
 	else messageByUser = message.member.user.tag;
 
-	// Log all user messages
-
+// LOG ALL USER MESSAGES:
 	// Skip blacklisted channels
 	let skipLog = isBlacklistedChannel(message.channel.id);
 	if(skipLog == false) {
@@ -314,7 +362,7 @@ bot.on("message", function(message) {
 			let cleanMessage = message.content.replace(/\n/g, " <new_Line> ");
 			writeLog(message.guild.id, message.channel.id, getDate() + ".log", messageByUser, cleanMessage, message.id);
 		}
-		// Log urls for attached files 
+		// Log urls for attached files
 		if (message.attachments.size > 0) {
 			for(let i = 0; i < message.attachments.size; i++) {
 				writeLog(message.guild.id, message.channel.id, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
@@ -324,55 +372,74 @@ bot.on("message", function(message) {
 
 // COMMAND MODE:
 	// Only continue if user is full admin
-	if(message.member.hasPermission(PRINT_PERMISSION)) {
-		// Remove extra spaces
-		let msg = message.content.replace(/ +(?= )/g,'');
-		// Put arguments on their own array
-		const args = msg.split(' ').slice(1);
+	if(!message.member.permissions.has(PRINT_PERMISSION)) { return; }
 
-		if  (msg.startsWith(config.prefix)) {
-			const command = msg.substring(1).toLowerCase().split(" ");
-			let precommand = command.shift(); // Remove the prefix as it can be changed from config
-			// Fixed parameters
-			let param_channelId = checkChannelFormat(args[0]);
-			let param_timeFrame = checkTimeFormat(args[1]);
+	// Remove extra spaces
+	let msg = message.content.replace(/ +(?= )/g,'');
+	// Put arguments on their own array
+	const args = msg.split(' ').slice(1);
 
-			switch(precommand) {	
-				case "help":
-					message.channel.send({embed:helpMessage});
-				break;		
+	if  (msg.startsWith(config.prefix)) {
+		const command = msg.substring(1).toLowerCase().split(" ");
+		let precommand = command.shift(); // Remove the prefix as it can be changed from config
+		// Fixed parameters
+		let param_channelId = checkChannelFormat(args[0]);
+		let param_timeFrame = checkTimeFormat(args[1]);
 
-				case "printlog":
-					// This command needs channel and time parameters
-					if(args.length < 2) {
-						message.channel.send("Invalid amount of parameters!\nThis command needs channel and time as parameters");
-						return;
-					}
+		switch(precommand) {
+			case "help":
+				message.channel.send({ embeds: [helpMessage] });
+			break;
 
-					// Check if channel parameter was give correctly
-					if(param_channelId == -1) {
-						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
-						return;
-					}
+			case "printlog":
+				// This command needs channel and time parameters
+				if(args.length < 2) {
+					message.channel.send("Invalid amount of parameters!\nThis command needs channel and time as parameters");
+					return;
+				}
 
-					// Check if date parameter was give correctly
-					if(param_timeFrame == -1) {
-						message.channel.send("Invalid time format! Only YYYY-MM-DD is supported");
-						return;
-					}
-					
-					// Prevent from accidentally showing the logs in public
-					if(!isAdminChannel(message.channel.id)) {
-						let str = "**Heads up!**\n" + 
-								  "You are trying to print logs in non-admin channel!\n" +
-								  "Are you sure you want everyone to see the logs?\n" + 
-								  "This will be timed out and automatically canceled after half a minute";
-						requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, message.guild.id, param_channelId, param_timeFrame, messageByUser]);
-					}
-					else printLog(message.channel, message.guild.id, param_channelId, param_timeFrame, messageByUser);
-				break;
+				// Check if channel parameter was give correctly
+				if(param_channelId == -1) {
+					message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
+					return;
+				}
 
-				case "listlogs":
+				// Check if date parameter was give correctly
+				if(param_timeFrame == -1) {
+					message.channel.send("Invalid time format! Only YYYY-MM-DD is supported");
+					return;
+				}
+
+				// Prevent from accidentally showing the logs in public
+				if(!isAdminChannel(message.channel.id)) {
+					let str = "**Heads up!**\n" +
+								"You are trying to print logs in non-admin channel!\n" +
+								"Are you sure you want everyone to see the logs?\n" + 
+								"This will be timed out and automatically canceled after half a minute";
+					requireConfirmation(message.author.id, message.channel, str, printLog, [message.channel, message.guild.id, param_channelId, param_timeFrame, messageByUser]);
+				}
+				else printLog(message.channel, message.guild.id, param_channelId, param_timeFrame, messageByUser);
+			break;
+
+			case "listlogs":
+				// This command needs channel parameter
+				if (args.length < 1) {
+					message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
+					return;
+				}
+
+				// Check if channel parameter was give correctly
+				if (param_channelId == -1) {
+					message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
+					return;
+				}
+
+				let str = listLogs(logsFolder + message.guild.id + "/" + param_channelId);
+				message.channel.send("log files for <#" + param_channelId + ">:\n" + str);
+			break;
+
+			case "clearlog":
+				if(message.member.hasPermission(PRINT_PERMISSION)) {
 					// This command needs channel parameter
 					if (args.length < 1) {
 						message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
@@ -384,34 +451,15 @@ bot.on("message", function(message) {
 						message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
 						return;
 					}
+					removeLog(message, message.guild.id, param_channelId, messageByUser);
+				}
+				else message.send("You don't have permission to remove logs");
+			break;
 
-					let str = listLogs(logsFolder + message.guild.id + "/" + param_channelId);
-					message.channel.send("log files for <#" + param_channelId + ">:\n" + str);
-				break;
-
-				case "clearlog":
-					if(message.member.hasPermission(PRINT_PERMISSION)) {
-						// This command needs channel parameter
-						if (args.length < 1) {
-							message.channel.send("Invalid amount of parameters!\nThis command needs channel as parameter");
-							return;
-						}
-
-						// Check if channel parameter was give correctly
-						if (param_channelId == -1) {
-							message.channel.send("Invalid channel! Either mention the channel with *#* or give the id as number");
-							return;
-						}
-						removeLog(message, message.guild.id, param_channelId, messageByUser);
-					}
-					else message.send("You don't have permission to remove logs");
-				break;
-				
-				// Don't do anything is it's not command
-				default:
-				return;
-			};
-		}
+			// Don't do anything is it's not command
+			default:
+			return;
+		};
 	}
 });
 
@@ -432,11 +480,13 @@ bot.on('messageUpdate', (oldMessage, newMessage) => {
 bot.on ("messageDelete", message => {
 	let str = "";
 	// All this information either can exist or not
-	if(message.member){
-		if(message.member.user) str += message.member.user.tag;
+	if(message.member) {
+		if(message.member.user) {
+			str += message.member.user.tag;
+		}
 	}
 	if(message.content) str += ": " + message.content;
-	
+
 	writeLog(message.guild.id, message.channel.id, getDate() + ".log", "Removed message", str, message.id);
 });
 
