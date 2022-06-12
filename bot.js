@@ -476,7 +476,11 @@ bot.on("messageCreate", function(message) {
 		// Log urls for attached files
 		if (message.attachments.size > 0) {
 			for(let i = 0; i < message.attachments.size; i++) {
-				writeLog(message.guild.id, message.channel.id, getDate() + ".log", messageByUser, message.attachments.array()[i].url, message.id);
+				const attachment = message.attachments.at(i);
+				const url = attachment ? attachment.url : null;
+				if (url == null) { return; }
+
+				writeLog(message.guild.id, message.channel.id, getDate() + ".log", messageByUser, url, message.id);
 			}
 		}
 	}
